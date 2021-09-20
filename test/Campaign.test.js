@@ -51,11 +51,80 @@ describe('Campaigns', () => {
     it('allows to contribute and marks as approver', async () => {
         await campaign.methods.contribute().send({ 
             from: accounts[2], 
-            value: 101, 
+            value: '101', 
             gas: '1000000' });
 
         const isApprover = await campaign.methods.approvers(accounts[2]).call();
 
         assert(isApprover);
+    });
+
+    it('requires a minimum contribution', async () => {
+        try {
+            await campaign.methods.contribute().send({ 
+                from: accounts[2], 
+                value: '99', 
+                gas: '1000000' 
+            });
+            assert(false);
+        }
+        catch(err) {
+            assert(err);
+        }
+    });
+
+    it('can create request', async () => {
+        const description = 'test request';
+
+        await campaign.methods
+            .createRequest(description, '100', accounts[1])
+            .send({
+                from: accounts[1],
+                gas: '1000000' 
+            });
+
+        const request = await campaign.methods.requests(0).call();
+
+        assert(description, request.description);
+    });
+
+    it('end to end', async () => {
+        let initialBalance = await web3.eth.getBalance(accounts[3]); // request recipient account
+        initialBalance = parseFloat(initialBalance);
+
+        // contribute
+        await campaign.methods.contribute().send({ 
+            from: accounts[2], // contributor
+            value: '1000000000', 
+            gas: '1000000' });
+
+        // create request
+        await campaign.methods
+            .createRequest('test request', '100000000', accounts[3])
+            .send({
+                from: accounts[1], // campaign manager
+                gas: '1000000' 
+            });
+
+        // approve request
+        await campaign.methods
+            .approveRequest(0)
+            .send({
+                from: accounts[2], // contributor
+                gas: '1000000' 
+            });
+
+        // finalize request
+        await campaign.methods
+            .finalize(0)
+            .send({
+                from: accounts[1], // campaign manager
+                gas: '1000000' 
+            });
+
+        let balance = await web3.eth.getBalance(accounts[3]);
+        balance = parseFloat(balance);
+
+        assert(balance > initialBalance);
     });
 });
